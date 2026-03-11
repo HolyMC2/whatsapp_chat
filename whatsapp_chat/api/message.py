@@ -39,7 +39,6 @@ def mark_as_read(room):
     try:
         # Update local contact status
         frappe.db.set_value("WhatsApp Contact", room, "is_read", 1, update_modified=False)
-        frappe.db.commit()
 
         # Send read receipts to WhatsApp if enabled
         send_whatsapp_read_receipts(room)
