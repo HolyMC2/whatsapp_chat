@@ -39,7 +39,6 @@ def mark_as_read(room):
     try:
         # Update local contact status
         frappe.db.set_value("WhatsApp Contact", room, "is_read", 1, update_modified=False)
-        frappe.db.commit()
 
         # Send read receipts to WhatsApp if enabled
         send_whatsapp_read_receipts(room)
@@ -127,12 +126,50 @@ def send(content, user, room, user_no, attachment=None):
     return "ok"
 
 
+def _normalize_mx_phone(p):
+    """Coerce phone numbers to digits-only canonical MX form so chat history groups by one identity.
+    Examples: +526691530561, 6691530561, 5216691530561  -> 526691530561"""
+    if not p:
+        return p
+    d = "".join(c for c in str(p) if c.isdigit())
+    if d.startswith("521") and len(d) == 13:
+        d = "52" + d[3:]
+    elif len(d) == 10:
+        d = "52" + d
+    return d
+
+
+def _resolve_contact_name(mobile_no, fallback):
+    """Look up a human-readable name for a phone number via CRM Lead/Deal/Contact."""
+    try:
+        from crm.integrations.api import get_contact_by_phone_number
+        c = get_contact_by_phone_number(mobile_no) or {}
+        if c.get("full_name"):
+            return c["full_name"]
+        if c.get("name"):
+            full = frappe.db.get_value("Contact", c["name"], ["first_name", "last_name"])
+            if full and any(full):
+                return " ".join(x for x in full if x).strip()
+    except Exception:
+        pass
+    return fallback or mobile_no
+
+
+def _default_assignee_email():
+    """Pick the user new WhatsApp Contacts default to so realtime events fire."""
+    val = frappe.db.get_single_value("WhatsApp Settings", "default_assignee_email") if frappe.db.has_column("WhatsApp Settings", "default_assignee_email") else None
+    if val:
+        return val
+    return frappe.db.get_value("Has Role", {"role": "System Manager", "parenttype": "User"}, "parent", order_by="creation asc")
+
+
 def last_message(doc, method):
     if doc.type == 'Outgoing':
         mobile_no = doc.to
     else:
         mobile_no = doc.get("from")
 
+    mobile_no = _normalize_mx_phone(mobile_no)
 
     contact_name = frappe.db.get_value("WhatsApp Contact", filters={"mobile_no": mobile_no})
     if contact_name:
@@ -145,8 +182,9 @@ def last_message(doc, method):
             "doctype": "WhatsApp Contact",
             "mobile_no": mobile_no,
             "last_message": doc.message,
-            "contact_name": mobile_no,
-            "is_read": 0
+            "contact_name": _resolve_contact_name(mobile_no, doc.get("profile_name") or mobile_no),
+            "is_read": 0,
+            "email": _default_assignee_email(),
         })
         chat_doc.save(ignore_permissions=True)
 
