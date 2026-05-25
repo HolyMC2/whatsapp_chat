@@ -140,7 +140,10 @@ def _normalize_mx_phone(p):
 
 
 def _resolve_contact_name(mobile_no, fallback):
-    """Look up a human-readable name for a phone number via CRM Lead/Deal/Contact."""
+    """Look up a human-readable name for a phone number via CRM helper, with a
+    direct Contact / Contact Phone fallback for the cases CRM's strict matching
+    misses (e.g. legacy MX `521…` mobile_no formats)."""
+    # 1. CRM helper (fast path)
     try:
         from crm.integrations.api import get_contact_by_phone_number
         c = get_contact_by_phone_number(mobile_no) or {}
@@ -150,6 +153,38 @@ def _resolve_contact_name(mobile_no, fallback):
             full = frappe.db.get_value("Contact", c["name"], ["first_name", "last_name"])
             if full and any(full):
                 return " ".join(x for x in full if x).strip()
+    except Exception:
+        pass
+
+    # 2. Direct fallback: search Contact + Contact Phone with normalized phone.
+    # Strip non-digits and try matching the last 10 digits — that's the user's
+    # local MX number and survives all the +/521 prefix permutations.
+    digits = "".join(c for c in str(mobile_no or "") if c.isdigit())
+    last10 = digits[-10:] if len(digits) >= 10 else digits
+    if not last10:
+        return fallback or mobile_no
+    try:
+        # match against Contact.mobile_no normalised (strip + and spaces)
+        rows = frappe.db.sql(
+            """SELECT c.name, c.full_name, c.first_name, c.last_name
+               FROM `tabContact` c
+               WHERE REPLACE(REPLACE(c.mobile_no,'+',''),' ','') LIKE %s
+                  OR EXISTS (
+                     SELECT 1 FROM `tabContact Phone` p
+                     WHERE p.parent = c.name
+                       AND REPLACE(REPLACE(p.phone,'+',''),' ','') LIKE %s
+                  )
+               ORDER BY c.modified DESC LIMIT 1""",
+            (f"%{last10}", f"%{last10}"),
+            as_dict=True,
+        )
+        if rows:
+            r = rows[0]
+            if r.get("full_name") and r["full_name"].strip():
+                return r["full_name"].strip()
+            nm = " ".join(x for x in (r.get("first_name"), r.get("last_name")) if x).strip()
+            if nm:
+                return nm
     except Exception:
         pass
     return fallback or mobile_no
