@@ -163,6 +163,14 @@ def _default_assignee_email():
     return frappe.db.get_value("Has Role", {"role": "System Manager", "parenttype": "User"}, "parent", order_by="creation asc")
 
 
+def _looks_like_phone(s):
+    """Heuristic: a contact_name that's still phone-shaped (no real name resolved yet)."""
+    if not s:
+        return True
+    s = str(s).strip().lstrip("+")
+    return s.isdigit() and len(s) >= 7
+
+
 def last_message(doc, method):
     if doc.type == 'Outgoing':
         mobile_no = doc.to
@@ -176,6 +184,12 @@ def last_message(doc, method):
         chat_doc = frappe.get_doc("WhatsApp Contact", contact_name)
         chat_doc.last_message = doc.message
         chat_doc.is_read = 0
+        # Heal name: if previous contact_name still looks like a phone, try resolving again
+        # (covers contacts created before a matching Frappe Contact existed).
+        if _looks_like_phone(chat_doc.contact_name):
+            resolved = _resolve_contact_name(mobile_no, doc.get("profile_name") or mobile_no)
+            if resolved and not _looks_like_phone(resolved):
+                chat_doc.contact_name = resolved
         chat_doc.save(ignore_permissions=True)
     else:
         chat_doc = frappe.get_doc({
