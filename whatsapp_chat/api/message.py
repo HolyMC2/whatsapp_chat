@@ -206,6 +206,51 @@ def _looks_like_phone(s):
     return s.isdigit() and len(s) >= 7
 
 
+def _resolve_deal_or_lead(mobile_no):
+    """Return (reference_doctype, reference_name) for the latest-modified Deal
+    or Lead whose mobile_no matches the last 10 digits of `mobile_no`.
+
+    Prefer Deal over Lead; pick most recently modified within either pool.
+    Returns (None, None) if nothing matches.
+    """
+    digits = "".join(c for c in str(mobile_no or "") if c.isdigit())
+    last10 = digits[-10:] if len(digits) >= 10 else digits
+    if not last10:
+        return None, None
+    like = f"%{last10}"
+    deal = frappe.db.sql(
+        """SELECT name FROM `tabCRM Deal`
+           WHERE REPLACE(REPLACE(mobile_no,'+',''),' ','') LIKE %s
+           ORDER BY modified DESC LIMIT 1""",
+        (like,),
+    )
+    if deal:
+        return "CRM Deal", deal[0][0]
+    lead = frappe.db.sql(
+        """SELECT name FROM `tabCRM Lead`
+           WHERE COALESCE(converted,0)=0
+             AND REPLACE(REPLACE(mobile_no,'+',''),' ','') LIKE %s
+           ORDER BY modified DESC LIMIT 1""",
+        (like,),
+    )
+    if lead:
+        return "CRM Lead", lead[0][0]
+    return None, None
+
+
+def auto_link_reference(doc, method=None):
+    """before_insert hook: stamp reference_doctype/reference_name on a new
+    WhatsApp Message so the CRM Deal/Lead WhatsApp tab scopes correctly.
+    Skips if reference is already set (e.g. operator chose target explicitly)."""
+    if doc.get("reference_doctype") and doc.get("reference_name"):
+        return
+    phone = doc.to if doc.type == "Outgoing" else doc.get("from")
+    dt, name = _resolve_deal_or_lead(_normalize_mx_phone(phone))
+    if dt:
+        doc.reference_doctype = dt
+        doc.reference_name = name
+
+
 def last_message(doc, method):
     if doc.type == 'Outgoing':
         mobile_no = doc.to

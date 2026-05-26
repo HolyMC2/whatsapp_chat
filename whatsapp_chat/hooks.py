@@ -141,6 +141,7 @@ app_include_js = ['whatsapp_chat.bundle.js'] if is_frappe_above_v13 else [
 
 doc_events = {
     "WhatsApp Message": {
+        "before_insert": "whatsapp_chat.api.message.auto_link_reference",
         "after_insert": "whatsapp_chat.api.message.last_message",
     },
     "Contact": {
