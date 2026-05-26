@@ -50,11 +50,25 @@ export default class ChatSpace {
 					${__(this.profile.room_name)}
 					<div class='online-circle'></div>
 					</div>
-					<div class='chat-profile-status'>${__('Typing...')}</div>
+					<div class='chat-profile-status' style='font-family: monospace; font-size: 11px;'>
+						${this.format_phone(this.profile.opposite_person_email)}
+					</div>
 				</div>
 			</div>
 		`;
     this.$chat_space.append(header_html);
+  }
+
+  format_phone(raw) {
+    if (!raw) return '';
+    const d = String(raw).replace(/\D/g, '');
+    if (d.length === 12 && d.startsWith('52')) {
+      return `+52 ${d.slice(2, 5)} ${d.slice(5, 8)} ${d.slice(8)}`;
+    }
+    if (d.length === 11 && d.startsWith('1')) {
+      return `+1 ${d.slice(1, 4)} ${d.slice(4, 7)} ${d.slice(7)}`;
+    }
+    return raw.startsWith('+') ? raw : `+${d}`;
   }
 
   async fetch_and_setup_messages() {
