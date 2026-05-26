@@ -34,11 +34,12 @@ export default class ChatRoom {
     const info_html = `
 			<div class='chat-profile-info'>
 				<div class='chat-name'>
-					${__(this.profile.room_name)} 
-					<div class='chat-latest' 
+					${__(this.profile.room_name)}
+					<div class='chat-latest'
 						style='display: ${this.profile.is_read ? 'none' : 'inline-block'}'
 					></div>
 				</div>
+				<div class='chat-phone' style='font-family: monospace; font-size: 10px; color: var(--text-muted); line-height: 1.1;'>${this.format_phone(this.profile.opposite_person_email)}</div>
 				<div style='color: ${
           this.profile.is_read ? 'var(--text-muted)' : 'var(--text-color)'
         }' class='last-message'>${__(last_message)}</div>
@@ -54,6 +55,18 @@ export default class ChatRoom {
     inner_html += this.avatar_html + info_html + date_html;
 
     this.$chat_room.html(inner_html);
+  }
+
+  format_phone(raw) {
+    if (!raw) return '';
+    const d = String(raw).replace(/\D/g, '');
+    if (d.length === 12 && d.startsWith('52')) {
+      return `+52 ${d.slice(2, 5)} ${d.slice(5, 8)} ${d.slice(8)}`;
+    }
+    if (d.length === 11 && d.startsWith('1')) {
+      return `+1 ${d.slice(1, 4)} ${d.slice(4, 7)} ${d.slice(7)}`;
+    }
+    return raw.startsWith('+') ? raw : `+${d}`;
   }
 
   sanitize_last_message(message) {
