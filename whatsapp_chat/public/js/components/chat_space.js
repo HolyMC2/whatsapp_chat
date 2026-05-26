@@ -469,6 +469,30 @@ export default class ChatSpace {
       this.profile.user_email,
       attachment
     );
+    // Optimistic bubble has no status yet. Meta acks/fails the send within a
+    // few seconds. Re-fetch after a short delay so the operator sees ✓ ✓✓ or
+    // ⚠ failed without having to close+reopen the bubble.
+    if (this._send_refresh_timer) clearTimeout(this._send_refresh_timer);
+    this._send_refresh_timer = setTimeout(() => this.refresh_messages(), 4000);
+  }
+
+  async refresh_messages() {
+    try {
+      const res = await get_messages(this.profile.room, this.profile.user_email);
+      // Re-render the message list in place (preserve scroll where possible).
+      const was_at_bottom = (() => {
+        const el = this.$chat_space_container && this.$chat_space_container[0];
+        if (!el) return true;
+        return Math.abs(el.scrollHeight - el.clientHeight - el.scrollTop) < 30;
+      })();
+      this.make_messages_html(res);
+      if (this.$chat_space_container) {
+        this.$chat_space_container.html(this.message_html);
+        if (was_at_bottom) scroll_to_bottom(this.$chat_space_container);
+      }
+    } catch (e) {
+      // swallow — keep optimistic UI on transient failure
+    }
   }
 
   receive_message(res, time) {
