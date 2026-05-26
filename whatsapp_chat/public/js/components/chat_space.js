@@ -50,9 +50,10 @@ export default class ChatSpace {
 					${__(this.profile.room_name)}
 					<div class='online-circle'></div>
 					</div>
-					<div class='chat-profile-status' style='font-family: monospace; font-size: 11px;'>
+					<div class='chat-profile-phone' style='font-family: monospace; font-size: 11px;'>
 						${this.format_phone(this.profile.opposite_person_email)}
 					</div>
+					<div class='chat-profile-status' style='display: none;'></div>
 				</div>
 			</div>
 		`;
@@ -132,7 +133,8 @@ export default class ChatSpace {
         get_time(element.creation),
         message_type,
         element.sender,
-        element.caption
+        element.caption,
+        element.status,
       ).prop('outerHTML');
 
       this.prevMessage = element;
@@ -349,12 +351,15 @@ export default class ChatSpace {
     }
   }
 
-  make_message(content, time, type, name, caption) {
+  make_message(content, time, type, name, caption, status) {
     const message_class =
       type === 'recipient' ? 'recipient-message' : 'sender-message';
     const $recipient_element = $(document.createElement('div')).addClass(
       message_class
     );
+    if (status === 'failed') {
+      $recipient_element.addClass('msg-failed');
+    }
     const $message_element = $(document.createElement('div')).addClass(
       'message-bubble'
     );
@@ -411,7 +416,18 @@ export default class ChatSpace {
     }
 
     $recipient_element.append($message_element);
-    $recipient_element.append(`<div class='message-time'>${__(time)}</div>`);
+    let time_html = `<div class='message-time'>${__(time)}`;
+    if (status === 'failed') {
+      time_html += ` <span class='msg-status-tag' style='color:#e53935;font-weight:600;margin-left:4px;'>⚠ ${__('failed')}</span>`;
+    } else if (status === 'read') {
+      time_html += ` <span class='msg-status-tag' style='color:#34b7f1;margin-left:4px;'>✓✓</span>`;
+    } else if (status === 'delivered') {
+      time_html += ` <span class='msg-status-tag' style='color:#999;margin-left:4px;'>✓✓</span>`;
+    } else if (status === 'sent') {
+      time_html += ` <span class='msg-status-tag' style='color:#999;margin-left:4px;'>✓</span>`;
+    }
+    time_html += `</div>`;
+    $recipient_element.append(time_html);
 
     return $recipient_element;
   }

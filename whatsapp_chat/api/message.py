@@ -12,7 +12,7 @@ def get_all(room: str, user_no: str):
 
     """
     return frappe.db.sql("""
-        SELECT creation,
+        SELECT name, creation, type, status,
         case
             when `to` <> '' then `to`
             else
