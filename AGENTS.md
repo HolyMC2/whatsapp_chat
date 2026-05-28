@@ -1,5 +1,7 @@
 # whatsapp_chat-fork — Desk WhatsApp Chat UI (HolyMC2 fork)
 
+> ⚠ **Multi-agent stomping safeguard**: before any edit/restart, read [muelle/AGENTS.md → Coordination](../muelle/AGENTS.md#coordination--multi-agent-freshness-read-before-any-write). Use `bash ../muelle/scripts/muelle-restart.sh <svc> --reason "..."` not raw `docker compose restart`. Memory entries: `feedback_agent_freshness_protocol`, `feedback_restart_coordination`.
+
 Fork of `shridarpatil/whatsapp_chat`, branch `doco-customizations`. The upstream UI ships a Desk floating chat bubble that mostly worked on Frappe v13-v14 but had several v16 incompatibilities + missing features for Marco's workflow. This fork patches all of them.
 
 Companion to [`crm/`](../crm/AGENTS.md) (which carries the per-Deal WhatsApp tab) and the upstream [`frappe_whatsapp`](https://github.com/shridarpatil/frappe_whatsapp) connector (provides the Meta API client + WhatsApp Message doctype). See [`muelle-host/AGENTS.md`](../AGENTS.md) for the broader stack map.
