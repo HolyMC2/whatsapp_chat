@@ -46,6 +46,31 @@ def _number_has_whatsapp(norm):
     return False
 
 
+def _manual_whatsapp_flag(doctype, name):
+    """Operator-set `mobile_is_whatsapp` on the Deal/Lead (1=yes, 0=no), or None when
+    the field isn't present yet (pre-migration). The field defaults to 1, so an
+    explicit 0 means the operator marked the number as NOT on WhatsApp."""
+    try:
+        if not frappe.get_meta(doctype).has_field("mobile_is_whatsapp"):
+            return None
+    except Exception:
+        return None
+    v = frappe.db.get_value(doctype, name, "mobile_is_whatsapp")
+    return None if v is None else int(v)
+
+
+def _wa_state(manual, has):
+    """Combine the operator flag with the conversation-derived signal.
+    'yes' (on WhatsApp) wins when either is positive — a real exchange (has) trumps
+    a mistaken 'no'. 'no' only when the operator explicitly unchecked it and there's
+    no exchange. 'unknown' only before migration (flag absent) and never messaged."""
+    if has or manual == 1:
+        return "yes"
+    if manual == 0:
+        return "no"
+    return "unknown"
+
+
 @frappe.whitelist()
 def get_deal_whatsapp_contacts(doctype: str, name: str):
     """For a CRM Deal: enumerate every Contact in the contacts child table with
@@ -66,6 +91,8 @@ def get_deal_whatsapp_contacts(doctype: str, name: str):
         phone_norm = _normalize_mx_phone(d.mobile_no)
         if not phone_norm:
             return []
+        manual = _manual_whatsapp_flag("CRM Lead", name)
+        has = _number_has_whatsapp(phone_norm)
         return [
             {
                 "contact": None,
@@ -74,7 +101,8 @@ def get_deal_whatsapp_contacts(doctype: str, name: str):
                 "phone_display": d.mobile_no,
                 "image": d.image,
                 "is_primary": 1,
-                "has_whatsapp": _number_has_whatsapp(phone_norm),
+                "has_whatsapp": has,
+                "whatsapp_state": _wa_state(manual, has),
             }
         ]
 
@@ -90,6 +118,7 @@ def get_deal_whatsapp_contacts(doctype: str, name: str):
     )
     out = []
     seen_phones = set()
+    manual = _manual_whatsapp_flag("CRM Deal", name)
     for r in rows:
         # First try Contact.mobile_no; fall back to first Contact Phone row.
         phone = r.get("mobile_no")
@@ -106,6 +135,7 @@ def get_deal_whatsapp_contacts(doctype: str, name: str):
         if not norm or norm in seen_phones:
             continue
         seen_phones.add(norm)
+        has = _number_has_whatsapp(norm)
         out.append(
             {
                 "contact": r.get("contact"),
@@ -114,7 +144,8 @@ def get_deal_whatsapp_contacts(doctype: str, name: str):
                 "phone_display": phone,
                 "image": r.get("image"),
                 "is_primary": int(r.get("is_primary") or 0),
-                "has_whatsapp": _number_has_whatsapp(norm),
+                "has_whatsapp": has,
+                "whatsapp_state": _wa_state(manual, has),
             }
         )
 
@@ -123,6 +154,7 @@ def get_deal_whatsapp_contacts(doctype: str, name: str):
         deal_mobile = frappe.db.get_value("CRM Deal", name, "mobile_no")
         norm = _normalize_mx_phone(deal_mobile)
         if norm:
+            has = _number_has_whatsapp(norm)
             out.append(
                 {
                     "contact": None,
@@ -131,7 +163,8 @@ def get_deal_whatsapp_contacts(doctype: str, name: str):
                     "phone_display": deal_mobile,
                     "image": None,
                     "is_primary": 1,
-                    "has_whatsapp": _number_has_whatsapp(norm),
+                    "has_whatsapp": has,
+                    "whatsapp_state": _wa_state(manual, has),
                 }
             )
     return out
