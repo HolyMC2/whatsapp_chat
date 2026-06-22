@@ -18,6 +18,34 @@ def _normalize_mx_phone(p):
     return d or None
 
 
+def _number_has_whatsapp(norm):
+    """Has this number ever been on WhatsApp with us — i.e. is there a WhatsApp
+    Profile (created on every in/out message) or, failing that, any WhatsApp Message
+    for it. Matched by trailing 10 digits so the Meta '1' prefix variants
+    (5216691530561 inbound vs 526691530561 outbound) all group together. Used to flag
+    numbers we've never exchanged WhatsApp with in the inbox."""
+    digits = "".join(c for c in (norm or "") if c.isdigit())
+    if len(digits) < 10:
+        return False
+    suf = "%" + digits[-10:]
+    if frappe.db.exists("DocType", "WhatsApp Profiles"):
+        if frappe.db.sql(
+            "SELECT 1 FROM `tabWhatsApp Profiles` "
+            "WHERE REGEXP_REPLACE(COALESCE(number,''),'[^0-9]','') LIKE %s LIMIT 1",
+            (suf,),
+        ):
+            return True
+    if frappe.db.exists("DocType", "WhatsApp Message"):
+        if frappe.db.sql(
+            "SELECT 1 FROM `tabWhatsApp Message` "
+            "WHERE REGEXP_REPLACE(COALESCE(`from`,''),'[^0-9]','') LIKE %s "
+            "   OR REGEXP_REPLACE(COALESCE(`to`,''),'[^0-9]','') LIKE %s LIMIT 1",
+            (suf, suf),
+        ):
+            return True
+    return False
+
+
 @frappe.whitelist()
 def get_deal_whatsapp_contacts(doctype: str, name: str):
     """For a CRM Deal: enumerate every Contact in the contacts child table with
@@ -46,6 +74,7 @@ def get_deal_whatsapp_contacts(doctype: str, name: str):
                 "phone_display": d.mobile_no,
                 "image": d.image,
                 "is_primary": 1,
+                "has_whatsapp": _number_has_whatsapp(phone_norm),
             }
         ]
 
@@ -85,6 +114,7 @@ def get_deal_whatsapp_contacts(doctype: str, name: str):
                 "phone_display": phone,
                 "image": r.get("image"),
                 "is_primary": int(r.get("is_primary") or 0),
+                "has_whatsapp": _number_has_whatsapp(norm),
             }
         )
 
@@ -101,6 +131,7 @@ def get_deal_whatsapp_contacts(doctype: str, name: str):
                     "phone_display": deal_mobile,
                     "image": None,
                     "is_primary": 1,
+                    "has_whatsapp": _number_has_whatsapp(norm),
                 }
             )
     return out
