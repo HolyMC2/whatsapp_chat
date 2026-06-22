@@ -192,7 +192,17 @@ def _resolve_contact_name(mobile_no, fallback):
 
 def _default_assignee_email():
     """Pick the user new WhatsApp Contacts default to so realtime events fire."""
-    val = frappe.db.get_single_value("WhatsApp Settings", "default_assignee_email") if frappe.db.has_column("WhatsApp Settings", "default_assignee_email") else None
+    # WhatsApp Settings is a Single doctype (no `tabWhatsApp Settings` table), so
+    # has_column() raises TableMissingError on it — which previously blew up the
+    # WhatsApp Message after_insert hook for every brand-new number (no existing
+    # WhatsApp Contact), failing both inbound webhooks and outbound sends. Guard
+    # with meta.has_field (Single-safe) instead; get_single_value reads tabSingles.
+    val = None
+    if (
+        frappe.db.exists("DocType", "WhatsApp Settings")
+        and frappe.get_meta("WhatsApp Settings").has_field("default_assignee_email")
+    ):
+        val = frappe.db.get_single_value("WhatsApp Settings", "default_assignee_email")
     if val:
         return val
     return frappe.db.get_value("Has Role", {"role": "System Manager", "parenttype": "User"}, "parent", order_by="creation asc")
