@@ -143,6 +143,7 @@ doc_events = {
     "WhatsApp Message": {
         "before_insert": "whatsapp_chat.api.message.auto_link_reference",
         "after_insert": "whatsapp_chat.api.message.last_message",
+        "on_update": "whatsapp_chat.api.message.on_message_status_change",
     },
     "Contact": {
         "on_update": "whatsapp_chat.api.contact_sync.on_contact_update",

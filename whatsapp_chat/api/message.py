@@ -261,6 +261,21 @@ def auto_link_reference(doc, method=None):
         doc.reference_name = name
 
 
+def on_message_status_change(doc, method=None):
+    """Push a realtime ping when an outbound message's delivery status changes, so
+    the open inbox thread re-renders its ✓/✓✓/read receipt live. Meta's status
+    webhook sets WhatsApp Message.status (sent→delivered→read→failed) but emits no
+    realtime, so without this the receipts only update on a full thread reload."""
+    if not doc.has_value_changed("status"):
+        return
+    if not (doc.get("reference_doctype") and doc.get("reference_name")):
+        return
+    frappe.publish_realtime(
+        "whatsapp_status",
+        {"reference_doctype": doc.reference_doctype, "reference_name": doc.reference_name},
+    )
+
+
 def last_message(doc, method):
     if doc.type == 'Outgoing':
         mobile_no = doc.to
