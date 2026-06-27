@@ -329,4 +329,18 @@ def last_message(doc, method):
             user=chat_doc.email
         )
 
+    # Realtime for the fcrm inbox + the Deal/Lead Conversación tab. crm only publishes
+    # `whatsapp_message` in on_update (status changes), so a NEW message (insert) pushed
+    # nothing and the agent had to F5. Broadcast (no user/doctype -> site room, all agents)
+    # + after_commit so the frontend's refetch reads the COMMITTED row (no stale race).
+    if doc.get("reference_doctype") and doc.get("reference_name"):
+        ref = {"reference_doctype": doc.reference_doctype, "reference_name": doc.reference_name}
+        frappe.publish_realtime("whatsapp_message", ref, after_commit=True)
+        if doc.reference_doctype == "CRM Deal":
+            frappe.publish_realtime(
+                "doco_marketing:thread_update",
+                {"deal": doc.reference_name, "channel": "whatsapp"},
+                after_commit=True,
+            )
+
     return "ok"
