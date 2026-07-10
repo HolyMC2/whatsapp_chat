@@ -270,9 +270,12 @@ def on_message_status_change(doc, method=None):
         return
     if not (doc.get("reference_doctype") and doc.get("reference_name")):
         return
+    # after_commit: the receipt webhook runs in a transaction — publishing before
+    # commit let the frontend refetch a not-yet-visible status (stale ✓/✓✓ race).
     frappe.publish_realtime(
         "whatsapp_status",
         {"reference_doctype": doc.reference_doctype, "reference_name": doc.reference_name},
+        after_commit=True,
     )
 
 
@@ -333,14 +336,23 @@ def last_message(doc, method):
     # `whatsapp_message` in on_update (status changes), so a NEW message (insert) pushed
     # nothing and the agent had to F5. Broadcast (no user/doctype -> site room, all agents)
     # + after_commit so the frontend's refetch reads the COMMITTED row (no stale race).
-    if doc.get("reference_doctype") and doc.get("reference_name"):
-        ref = {"reference_doctype": doc.reference_doctype, "reference_name": doc.reference_name}
-        frappe.publish_realtime("whatsapp_message", ref, after_commit=True)
-        if doc.reference_doctype == "CRM Deal":
-            frappe.publish_realtime(
-                "doco_marketing:thread_update",
-                {"deal": doc.reference_name, "channel": "whatsapp"},
-                after_commit=True,
-            )
+    # UNGATED on reference: an inbound from an unknown number (reference empty ->
+    # "Sin asignar") previously emitted NOTHING, so first-contact messages only
+    # appeared on F5 — Messenger fixed this (services/messenger.publish_thread_update
+    # fires for orphans); WhatsApp kept the gate. The payload carries the phone so
+    # the frontend can refresh an open orphan thread too.
+    payload = {
+        "reference_doctype": doc.get("reference_doctype"),
+        "reference_name": doc.get("reference_name"),
+        "phone": mobile_no,
+        "direction": "out" if doc.type == "Outgoing" else "in",
+    }
+    frappe.publish_realtime("whatsapp_message", payload, after_commit=True)
+    if doc.get("reference_doctype") == "CRM Deal":
+        frappe.publish_realtime(
+            "doco_marketing:thread_update",
+            {"deal": doc.reference_name, "channel": "whatsapp"},
+            after_commit=True,
+        )
 
     return "ok"
