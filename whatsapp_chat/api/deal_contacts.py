@@ -46,6 +46,37 @@ def _number_has_whatsapp(norm):
     return False
 
 
+def _last_incoming_ts(norm):
+    """Newest Incoming WhatsApp Message creation for this number (trailing-10
+    match, same grouping rule as _number_has_whatsapp), or None. Drives the
+    'where is the live 24h session' default tab in the chat UI."""
+    digits = "".join(c for c in (norm or "") if c.isdigit())
+    if len(digits) < 10 or not frappe.db.exists("DocType", "WhatsApp Message"):
+        return None
+    suf = "%" + digits[-10:]
+    row = frappe.db.sql(
+        "SELECT MAX(creation) FROM `tabWhatsApp Message` "
+        "WHERE type = 'Incoming' "
+        "AND REGEXP_REPLACE(COALESCE(`from`,''),'[^0-9]','') LIKE %s",
+        (suf,),
+    )
+    return row[0][0] if row and row[0] and row[0][0] else None
+
+
+def _session_fields(norm):
+    """last_incoming + session_open (inbound within Meta's 24h customer-service
+    window → free-form sends deliver; outside it only templates do)."""
+    from frappe.utils import add_to_date, get_datetime, now_datetime
+
+    last_in = _last_incoming_ts(norm)
+    return {
+        "last_incoming": str(last_in) if last_in else None,
+        "session_open": bool(
+            last_in and get_datetime(last_in) > add_to_date(now_datetime(), hours=-24)
+        ),
+    }
+
+
 def _manual_whatsapp_flag(doctype, name):
     """Operator-set `mobile_is_whatsapp` on the Deal/Lead (1=yes, 0=no), or None when
     the field isn't present yet (pre-migration). The field defaults to 1, so an
@@ -103,6 +134,7 @@ def get_deal_whatsapp_contacts(doctype: str, name: str):
                 "is_primary": 1,
                 "has_whatsapp": has,
                 "whatsapp_state": _wa_state(manual, has),
+                **_session_fields(phone_norm),
             }
         ]
 
@@ -120,34 +152,44 @@ def get_deal_whatsapp_contacts(doctype: str, name: str):
     seen_phones = set()
     manual = _manual_whatsapp_flag("CRM Deal", name)
     for r in rows:
-        # First try Contact.mobile_no; fall back to first Contact Phone row.
-        phone = r.get("mobile_no")
-        if not phone and r.get("contact"):
-            ph = frappe.db.get_value(
+        # EVERY number of the Contact becomes its own conversation tab, not just
+        # the primary. A customer often writes from a second number (spouse's
+        # phone, work line): the live session then exists on THAT number, and a
+        # send to the primary bounces with Meta 131047 (outside the 24h window).
+        # Order: primary mobile first, then child-table order.
+        phones = []
+        if r.get("mobile_no"):
+            phones.append(r["mobile_no"])
+        if r.get("contact"):
+            for p in frappe.get_all(
                 "Contact Phone",
-                {"parent": r["contact"], "is_primary_mobile_no": 1},
-                "phone",
-            ) or frappe.db.get_value(
-                "Contact Phone", {"parent": r["contact"]}, "phone"
+                filters={"parent": r["contact"], "parenttype": "Contact"},
+                fields=["phone"],
+                order_by="is_primary_mobile_no desc, idx asc",
+            ):
+                if p.phone:
+                    phones.append(p.phone)
+        first_for_contact = True
+        for phone in phones:
+            norm = _normalize_mx_phone(phone)
+            if not norm or norm in seen_phones:
+                continue
+            seen_phones.add(norm)
+            has = _number_has_whatsapp(norm)
+            out.append(
+                {
+                    "contact": r.get("contact"),
+                    "name": r.get("full_name") or r.get("contact") or norm,
+                    "phone": norm,
+                    "phone_display": phone,
+                    "image": r.get("image"),
+                    "is_primary": int(r.get("is_primary") or 0) if first_for_contact else 0,
+                    "has_whatsapp": has,
+                    "whatsapp_state": _wa_state(manual, has),
+                    **_session_fields(norm),
+                }
             )
-            phone = ph
-        norm = _normalize_mx_phone(phone)
-        if not norm or norm in seen_phones:
-            continue
-        seen_phones.add(norm)
-        has = _number_has_whatsapp(norm)
-        out.append(
-            {
-                "contact": r.get("contact"),
-                "name": r.get("full_name") or r.get("contact") or norm,
-                "phone": norm,
-                "phone_display": phone,
-                "image": r.get("image"),
-                "is_primary": int(r.get("is_primary") or 0),
-                "has_whatsapp": has,
-                "whatsapp_state": _wa_state(manual, has),
-            }
-        )
+            first_for_contact = False
 
     # Fall-through: if no contacts, expose the Deal's own mobile_no as a single tab
     if not out:
@@ -165,6 +207,7 @@ def get_deal_whatsapp_contacts(doctype: str, name: str):
                     "is_primary": 1,
                     "has_whatsapp": has,
                     "whatsapp_state": _wa_state(manual, has),
+                    **_session_fields(norm),
                 }
             )
     return out
