@@ -72,19 +72,13 @@ whatsapp_chat-fork/
 ```bash
 # Lab
 cd ~/muelle-host/muelle
-# Source-only changes (Python or component JS):
-docker compose cp ~/muelle-host/whatsapp_chat-fork/whatsapp_chat/api/message.py \
-  backend:/home/frappe/frappe-bench/apps/whatsapp_chat/whatsapp_chat/api/message.py
-docker compose exec -T backend bash -c "cd /home/frappe/frappe-bench && bench build --app whatsapp_chat"
-docker compose restart backend queue-short queue-long
+bash scripts/dev-refresh.sh whatsapp_chat --restart-py
 
-# Prod
-ssh contavm 'cd ~/muelle && docker compose cp /tmp/file backend:/path && \
-  docker compose exec -T backend bash -c "bench build --app whatsapp_chat" && \
-  docker compose restart backend queue-short queue-long'
+# Production (explicitly authorized only)
+ssh contavm 'cd ~/muelle && scripts/prod-refresh.sh whatsapp_chat --restart-py --yes'
 ```
 
-The prod `apps/whatsapp_chat/` install is **missing `.git`** (per session 2026-05-24 observation) — direct file `cp` is the current update path, NOT `git pull`. Worth re-cloning from fork on prod for proper `git fetch + reset` workflow.
+The application is supplied by the current cell-apps overlay. Verify the live backend mount and production checkout before deployment; do not reuse historical container-copy procedures.
 
 ## Conventions specific to this fork
 
