@@ -1,0 +1,31 @@
+$ python -m unittest whatsapp_chat.tests.test_native_workspace -v
+test_absent_crm_keeps_existing_read_and_send_contract (whatsapp_chat.tests.test_native_workspace.NativeWorkspaceTests.test_absent_crm_keeps_existing_read_and_send_contract) ... ok
+test_absent_crm_preserves_explicit_reference_and_legacy_status_hook (whatsapp_chat.tests.test_native_workspace.NativeWorkspaceTests.test_absent_crm_preserves_explicit_reference_and_legacy_status_hook) ... ok
+test_all_customer_branches_reject_before_customer_queries_or_effects (whatsapp_chat.tests.test_native_workspace.NativeWorkspaceTests.test_all_customer_branches_reject_before_customer_queries_or_effects) ... ok
+test_broken_dependency_does_not_look_like_old_crm (whatsapp_chat.tests.test_native_workspace.NativeWorkspaceTests.test_broken_dependency_does_not_look_like_old_crm) ... ok
+test_config_hides_both_launchers_and_exposes_only_fixed_ready_route (whatsapp_chat.tests.test_native_workspace.NativeWorkspaceTests.test_config_hides_both_launchers_and_exposes_only_fixed_ready_route) ... ok
+test_each_importable_service_alone_activates_transition (whatsapp_chat.tests.test_native_workspace.NativeWorkspaceTests.test_each_importable_service_alone_activates_transition) ... ok
+test_each_native_metadata_footprint_blocks_legacy_when_modules_absent (whatsapp_chat.tests.test_native_workspace.NativeWorkspaceTests.test_each_native_metadata_footprint_blocks_legacy_when_modules_absent) ... ok
+test_failed_installed_app_or_schema_probe_is_closed (whatsapp_chat.tests.test_native_workspace.NativeWorkspaceTests.test_failed_installed_app_or_schema_probe_is_closed) ... ok
+test_missing_table_column_or_callable_holds_route (whatsapp_chat.tests.test_native_workspace.NativeWorkspaceTests.test_missing_table_column_or_callable_holds_route) ... ok
+test_no_crm_preserves_legacy_without_importing_or_probing_native (whatsapp_chat.tests.test_native_workspace.NativeWorkspaceTests.test_no_crm_preserves_legacy_without_importing_or_probing_native) ... ok
+test_orphaned_native_table_is_not_zero_footprint (whatsapp_chat.tests.test_native_workspace.NativeWorkspaceTests.test_orphaned_native_table_is_not_zero_footprint) ... ok
+test_ready_requires_actual_page_tables_columns_and_fixed_exports (whatsapp_chat.tests.test_native_workspace.NativeWorkspaceTests.test_ready_requires_actual_page_tables_columns_and_fixed_exports) ... ok
+test_retired_hooks_do_not_touch_document_or_emit_or_abort_ingestion (whatsapp_chat.tests.test_native_workspace.NativeWorkspaceTests.test_retired_hooks_do_not_touch_document_or_emit_or_abort_ingestion) ... ok
+test_truly_old_crm_zero_footprint_preserves_legacy (whatsapp_chat.tests.test_native_workspace.NativeWorkspaceTests.test_truly_old_crm_zero_footprint_preserves_legacy) ... ok
+
+----------------------------------------------------------------------
+Ran 14 tests in 0.021s
+
+OK
+exit=0
+
+$ node whatsapp_chat/tests/test_native_workspace_bundle.js
+PASS: 10 actual bundle setup branches; native/partial creates no FAB, navbar, socket or customer list.
+exit=0
+
+$ python -m compileall -q whatsapp_chat/api whatsapp_chat/tests
+exit=0
+
+$ git diff --check
+exit=0

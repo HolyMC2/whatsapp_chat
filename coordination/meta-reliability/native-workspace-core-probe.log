@@ -1,0 +1,8 @@
+helper_sha256=ab141f4efe48833eb133639dcdd8aeeb9446e04276cfd53987eef82fd2ab5143
+site=meta-reliability-test-20260910.lab.xoloitzcuintles.com
+CRM installed=True
+optional whatsapp_chat installed=False
+actual readiness=native
+actual guard=static PermissionError
+route=/desk/customer-conversations
+PASS: actual installed CRM fixed APIs, Page and physical schema; no optional app installation, customer reads, writes or transport.

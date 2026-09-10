@@ -1,6 +1,8 @@
 import frappe
 import mimetypes
 
+from whatsapp_chat.api.native_workspace import legacy_customer_hooks_enabled, require_legacy_customer_access
+
 
 
 @frappe.whitelist()
@@ -11,6 +13,7 @@ def get_all(room: str, user_no: str):
         room (str): Room's name.
 
     """
+    require_legacy_customer_access()
     return frappe.db.sql("""
         SELECT name, creation, type, status,
         case
@@ -36,6 +39,7 @@ def get_all(room: str, user_no: str):
 @frappe.whitelist()
 def mark_as_read(room):
     """Mark messages as read in local DB and optionally send read receipts to WhatsApp."""
+    require_legacy_customer_access()
     try:
         # Update local contact status
         frappe.db.set_value("WhatsApp Contact", room, "is_read", 1, update_modified=False)
@@ -49,6 +53,7 @@ def mark_as_read(room):
 
 def send_whatsapp_read_receipts(room):
     """Send read receipts to WhatsApp for unread incoming messages."""
+    require_legacy_customer_access()
     try:
         # Get the contact's mobile number
         contact = frappe.get_doc("WhatsApp Contact", room)
@@ -95,6 +100,7 @@ def send_whatsapp_read_receipts(room):
 
 @frappe.whitelist()
 def send(content, user, room, user_no, attachment=None):
+    require_legacy_customer_access()
     content_type = "text"
     if attachment:
         file_type = mimetypes.guess_type(content)[0]
@@ -252,6 +258,8 @@ def auto_link_reference(doc, method=None):
     """before_insert hook: stamp reference_doctype/reference_name on a new
     WhatsApp Message so the CRM Deal/Lead WhatsApp tab scopes correctly.
     Skips if reference is already set (e.g. operator chose target explicitly)."""
+    if not legacy_customer_hooks_enabled():
+        return
     if doc.get("reference_doctype") and doc.get("reference_name"):
         return
     phone = doc.to if doc.type == "Outgoing" else doc.get("from")
@@ -266,6 +274,8 @@ def on_message_status_change(doc, method=None):
     the open inbox thread re-renders its ✓/✓✓/read receipt live. Meta's status
     webhook sets WhatsApp Message.status (sent→delivered→read→failed) but emits no
     realtime, so without this the receipts only update on a full thread reload."""
+    if not legacy_customer_hooks_enabled():
+        return
     if not doc.has_value_changed("status"):
         return
     if not (doc.get("reference_doctype") and doc.get("reference_name")):
@@ -280,6 +290,8 @@ def on_message_status_change(doc, method=None):
 
 
 def last_message(doc, method):
+    if not legacy_customer_hooks_enabled():
+        return
     if doc.type == 'Outgoing':
         mobile_no = doc.to
     else:

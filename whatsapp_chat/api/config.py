@@ -1,5 +1,7 @@
 import frappe
 
+from whatsapp_chat.api.native_workspace import CUSTOMER_WORKSPACE, workspace_state
+
 
 @frappe.whitelist(allow_guest=True)
 def settings(token):
@@ -17,6 +19,11 @@ def settings(token):
     }
 
     config = {**config, **get_chat_settings()}
+
+    # The bundle checks enable_chat before creating either the FAB or navbar.
+    # No guest-token processing or legacy customer/user lookups on this path.
+    if not config['enable_chat']:
+        return config
 
     if config['is_admin']:
         config['user'] = get_admin_name(config['user_email'])
@@ -44,6 +51,14 @@ def get_chat_settings():
     Returns:
         dict: Dictionary containing chat settings.
     """
+    state = workspace_state()
+    if state != "legacy":
+        return {
+            'enable_chat': False,
+            'customer_workspace': CUSTOMER_WORKSPACE if state == "native" else None,
+            'customer_workspace_status': state,
+        }
+
     # chat_settings = frappe.get_cached_doc('Chat Settings')
     # user_roles = frappe.get_roles()
 

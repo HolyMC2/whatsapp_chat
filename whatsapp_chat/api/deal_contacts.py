@@ -6,6 +6,8 @@ attached to the deal, each with its own mobile_no, full_name and avatar.
 
 import frappe
 
+from whatsapp_chat.api.native_workspace import require_legacy_customer_access
+
 
 def _normalize_mx_phone(p):
     if not p:
@@ -108,6 +110,7 @@ def get_deal_whatsapp_contacts(doctype: str, name: str):
     a usable mobile_no + the Contact's display name + image.
     For a CRM Lead: return a single virtual contact built from the Lead's own
     mobile_no + lead_name."""
+    require_legacy_customer_access()
     if doctype not in ("CRM Deal", "CRM Lead"):
         frappe.throw("Unsupported doctype")
     if not frappe.has_permission(doctype, "read", doc=name):
