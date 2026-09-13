@@ -25,4 +25,3 @@ def get(email):
         "WhatsApp Contact",
         filters={"email": ['in', [email, '']]},
         fields=["*"])
-    return data
